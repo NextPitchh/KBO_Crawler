@@ -175,6 +175,13 @@ class PitchDataParser:
                 batter_record = opt.get("batterRecord", {}) or {}
                 break
 
+        # ── 타석 결과 텍스트(type=13/23)에서 relay_text 추출 ─────────
+        relay_text: str = ""
+        for opt in text_options:
+            if opt.get("type") in (13, 23):
+                relay_text = opt.get("text", "") or ""
+                break
+
         # ── 투구 이벤트(type=1) 순회 ──────────────────────────────────
         rows: list[dict] = []
         for opt in text_options:
@@ -192,6 +199,7 @@ class PitchDataParser:
                 opt=opt,
             )
             if row is not None:
+                row["relay_text"] = relay_text
                 rows.append(row)
 
         return rows

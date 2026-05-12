@@ -30,7 +30,7 @@ ORDERED_COLS: list[str] = [
     "pitch_speed", "pitch_type",
     "total_pitch_count", "recent_5_pitch_speed_avg", "inning_pitch_count",
     # 타겟 & 보상
-    "pitch_result", "reward_wpa",
+    "pitch_result", "relay_text", "reward_wpa",
 ]
 
 

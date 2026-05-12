@@ -158,7 +158,7 @@ python main.py
 
 | 컬럼명 | 설명 | 타입 | 예시 |
 |--------|------|------|------|
-| `pitch_result` | 투구 결과 코드 | str | `"S"`(스트라이크), `"B"`(볼), `"F"`(파울), `"H"`(안타) |
+| `pitch_result` | 투구 결과 코드 | str | `"S"`(헛스윙), `"B"`(볼), `"F"`(파울), `"H"`(타격), `"W"`(번트파울)|
 | `reward_wpa` | 해당 타석의 WPA(Win Probability Added) 변동량 | float \| None | `0.032` |
 
 > `reward_wpa`는 DQN 모델의 **보상 신호(Reward Signal)**로 사용됩니다.
