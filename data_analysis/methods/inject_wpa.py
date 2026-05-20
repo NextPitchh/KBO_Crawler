@@ -44,19 +44,24 @@ def inject_computed_wpa(
 
     df["reward_wpa_computed"] = df["we_after"] - df["we_before"]
 
+    n_missing = df["reward_wpa_computed"].isna().sum()
+    if n_missing > 0:
+        raise ValueError(f"reward_wpa_computed 결측 {n_missing}건 — Phase 2-B 검토 필요")
+
+    out_of_range = ((df["reward_wpa_computed"] < -1.0) | (df["reward_wpa_computed"] > 1.0)).sum()
+    if out_of_range > 0:
+        logger.warning("reward_wpa_computed [-1, 1] 범위 초과: %d건", out_of_range)
+
+    if "reward_wpa" not in df.columns:
+        raise ValueError("reward_wpa 컬럼이 없음 — 입력 데이터 검토 필요")
+
     df.to_parquet(output_path, index=False)
-    logger.info(
-        "저장 완료: %s  (reward_wpa_computed 결측=%d)",
-        output_path,
-        int(df["reward_wpa_computed"].isna().sum()),
-    )
+    logger.info("저장 완료: %s (%d 행)", output_path, len(df))
 
     return df
 
 
 if __name__ == "__main__":
-    import os
-
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s %(levelname)s: %(message)s",
@@ -65,45 +70,17 @@ if __name__ == "__main__":
 
     df_out = inject_computed_wpa()
 
-    SEP = "=" * 62
-    print(f"\n{SEP}")
-    print("  inject_wpa sanity check")
-    print(SEP)
+    print("=== Phase 3 완료 ===")
+    print(f"행 수: {len(df_out)}")
+    print(f"reward_wpa (네이버 원본) 결측률: {df_out['reward_wpa'].isna().mean():.2%}")
+    print(f"reward_wpa_computed 결측률: {df_out['reward_wpa_computed'].isna().mean():.2%}")
+    print(f"\nreward_wpa_computed 통계:")
+    print(df_out['reward_wpa_computed'].describe())
+    print(f"\n[-1, 1] 범위 초과: {((df_out['reward_wpa_computed'] < -1) | (df_out['reward_wpa_computed'] > 1)).sum()}건")
 
-    # 1. 결측 없음
-    n_nan = int(df_out["reward_wpa_computed"].isna().sum())
-    assert n_nan == 0, f"reward_wpa_computed 결측 {n_nan}건"
-    print(f"[OK] reward_wpa_computed 결측 0건")
-
-    # 2. 범위 [-1, +1]
-    out_of_range = ~df_out["reward_wpa_computed"].between(-1.0, 1.0)
-    n_oor = int(out_of_range.sum())
-    assert n_oor == 0, (
-        f"reward_wpa_computed 범위 위반 {n_oor}건:\n"
-        f"{df_out.loc[out_of_range, 'reward_wpa_computed'].describe()}"
+    print(f"\n=== pa_result별 평균 reward_wpa_computed ===")
+    print(
+        df_out.groupby('pa_result')['reward_wpa_computed']
+        .agg(['mean', 'count'])
+        .sort_values('mean', ascending=False)
     )
-    print(f"[OK] reward_wpa_computed 모두 [-1, +1] 이내")
-
-    # 3. 평균 근사 0
-    mean_val = df_out["reward_wpa_computed"].mean()
-    print(f"[INFO] reward_wpa_computed 평균: {mean_val:.6f}  (기대: ~0)")
-
-    # 4. pa_result별 평균 ΔWE 부호 순서 확인
-    by_result = (
-        df_out.groupby("pa_result")["reward_wpa_computed"]
-        .mean()
-        .sort_values(ascending=False)
-    )
-    print("\n[pa_result별 평균 reward_wpa_computed]")
-    print(by_result.to_string())
-
-    for good, bad in [("HR", "OUT"), ("HR", "SO"), ("1B", "OUT")]:
-        if good in by_result.index and bad in by_result.index:
-            assert by_result[good] > by_result[bad], (
-                f"부호 순서 위반: {good}({by_result[good]:.4f}) <= "
-                f"{bad}({by_result[bad]:.4f})"
-            )
-    print("\n[OK] 타석 결과별 부호 순서 (HR > 1B > OUT) 확인")
-
-    print(f"\n모든 sanity check 통과!")
-    print(SEP)

@@ -32,12 +32,12 @@ logger = logging.getLogger(__name__)
 
 def to_attacker_score_diff(score_diff: int, home_or_away: int) -> int:
     """
-    H3 컨벤션 score_diff(away - home)를 공격팀 관점 score_diff로 변환.
+    H1 컨벤션 score_diff(home - away)를 공격팀 관점 score_diff로 변환.
 
-    home_or_away=0 (원정 공격/초): 그대로 반환 (away > home = 공격팀 리드)
-    home_or_away=1 (홈 공격/말) : 부호 반전 (home > away = 공격팀 리드)
+    home_or_away=0 (원정 공격/초): 공격팀=원정 → 부호 반전 (away-home = -(home-away))
+    home_or_away=1 (홈 공격/말): 공격팀=홈 → 그대로 (home-away = 공격팀 리드)
     """
-    if home_or_away == 0:
+    if home_or_away == 1:
         return int(score_diff)
     return -int(score_diff)
 
@@ -207,10 +207,16 @@ def build_state_transitions(
 
     # ── Step 2: 정렬 보장 + 원본 인덱스 보존 ─────────────────────────────────
     df["_orig_idx"] = df.index  # parquet 원본 행 번호 — 디버깅 시 역추적용
+    # 시간순(초→말): home_or_away 0=초(top) 1=말(bot) 이므로 0이 앞에 와야 한다.
+    # 숫자 역순에 의존하지 않도록 임시 키로 명시적 매핑 후 전부 오름차순 정렬.
+    # parser.py에서 PA 역순 보정이 완료되었으므로 그룹 내 순서 반전은 불필요.
+    df["_sort_half"] = df["home_or_away"].map({0: 0, 1: 1})  # 초(ha=0)→0, 말(ha=1)→1
     df = df.sort_values(
-        ["game_id", "inning", "home_or_away"],
+        ["game_id", "inning", "_sort_half"],
+        ascending=[True, True, True],
         kind="stable",
     ).reset_index(drop=True)
+    df = df.drop(columns=["_sort_half"])
 
     # ── Step 3: before_state 컬럼 생성 ───────────────────────────────────────
     df["base_state"] = df.apply(
@@ -234,15 +240,15 @@ def build_state_transitions(
     )
 
     # ── Step 4: runs_scored (같은 (game_id, inning, home_or_away) 내 diff) ──
-    # H3 컨벤션: score_diff = away − home
-    #   원정 공격(0): away 득점 → score_diff 증가 → runs = next − cur
-    #   홈   공격(1): home 득점 → score_diff 감소 → runs = cur − next
+    # H1 컨벤션: score_diff = home − away
+    #   홈   공격(1/말): home 득점 → score_diff 증가 → runs = next − cur
+    #   원정 공격(0/초): away 득점 → score_diff 감소 → runs = cur − next
     df["_next_score_diff"] = (
         df.groupby(["game_id", "inning", "home_or_away"])["score_diff"]
         .shift(-1)
     )
     df["runs_scored"] = np.where(
-        df["home_or_away"] == 0,
+        df["home_or_away"] == 1,
         df["_next_score_diff"] - df["score_diff"],
         df["score_diff"] - df["_next_score_diff"],
     )
@@ -262,8 +268,8 @@ def build_state_transitions(
     # ── Step 6: 이닝 마지막 PA의 runs_scored 보정 ────────────────────────────
     # shift(-1)는 그룹 마지막 PA의 값을 얻지 못하므로,
     # 후계 그룹(다음 half-inning)의 첫 score_diff를 이용해 역산.
-    #   top(0) 마지막 PA → 후계 = (game_id, inning, 1)  첫 score_diff
-    #   bot(1) 마지막 PA → 후계 = (game_id, inning+1, 0) 첫 score_diff
+    #   원정공격(0/초) 마지막 PA → 후계 = (game_id, inning, 1)   홈/말 첫 score_diff
+    #   홈공격(1/말) 마지막 PA   → 후계 = (game_id, inning+1, 0) 원정/초 첫 score_diff
 
     # 후계 그룹 첫 score_diff 조회 딕셔너리
     _group_first_sd: dict[tuple, float] = (
@@ -275,9 +281,9 @@ def build_state_transitions(
     def _get_succ_first_sd(
         game_id: str, inning: int, home_or_away: int
     ) -> float | None:
-        if home_or_away == 0:
+        if home_or_away == 0:  # 원정공격(초) 끝 → 같은 이닝 홈공격(말)
             return _group_first_sd.get((game_id, inning, 1))
-        return _group_first_sd.get((game_id, inning + 1, 0))
+        return _group_first_sd.get((game_id, inning + 1, 0))  # 홈공격(말) 끝 → 다음 이닝 원정공격(초)
 
     # 이닝 마지막 PA에 후계 그룹 첫 score_diff 부착
     df["_succ_first_sd"] = np.nan
@@ -293,11 +299,13 @@ def build_state_transitions(
     top_end = inning_end_mask & (df["home_or_away"] == 0) & df["_succ_first_sd"].notna()
     bot_end = inning_end_mask & (df["home_or_away"] == 1) & df["_succ_first_sd"].notna()
 
+    # top(초/원정): away 득점 → score_diff 감소 → runs = cur − succ
     df.loc[top_end, "runs_scored"] = (
-        df.loc[top_end, "_succ_first_sd"] - df.loc[top_end, "score_diff"]
+        df.loc[top_end, "score_diff"] - df.loc[top_end, "_succ_first_sd"]
     )
+    # bot(말/홈): home 득점 → score_diff 증가 → runs = succ − cur
     df.loc[bot_end, "runs_scored"] = (
-        df.loc[bot_end, "score_diff"] - df.loc[bot_end, "_succ_first_sd"]
+        df.loc[bot_end, "_succ_first_sd"] - df.loc[bot_end, "score_diff"]
     )
 
     # 후계 그룹이 없는 케이스(경기 마지막 이닝): pa_result 기반 폴백
@@ -353,6 +361,10 @@ def build_state_transitions(
     df["data_quality_flag"] = ""
     df.loc[first_pa_mask & (df["score_diff"] != 0), "data_quality_flag"] = (
         "inning1_nonzero_start"
+    )
+    high_runs_mask = df["runs_scored"] >= 5
+    df.loc[high_runs_mask & (df["data_quality_flag"] == ""), "data_quality_flag"] = (
+        "high_runs_scored_artifact"
     )
 
     # ── 임시 컬럼 정리 (_orig_idx는 유지) ────────────────────────────────────

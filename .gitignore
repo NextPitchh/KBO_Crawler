@@ -8,3 +8,14 @@ wheels/
 
 # Virtual environments
 .venv
+
+# Regenerable intermediate data
+data_analysis/results/pbp/
+
+# Logs
+*.log
+
+# OS / IDE
+.DS_Store
+.vscode/
+.idea/

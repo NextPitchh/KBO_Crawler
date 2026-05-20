@@ -88,6 +88,7 @@ class PitchDataParser:
         self._speed_cache: dict[str, deque] = defaultdict(lambda: deque(maxlen=5))
         self._pitcher_inning: dict[str, int] = {}
         self._inning_pitch_count: dict[str, int] = defaultdict(int)
+        self._total_pitch_count: dict[str, int] = defaultdict(int)
 
     # ------------------------------------------------------------------ #
     #  Public                                                              #
@@ -98,6 +99,7 @@ class PitchDataParser:
         self._speed_cache.clear()
         self._pitcher_inning.clear()
         self._inning_pitch_count.clear()
+        self._total_pitch_count.clear()
 
     def parse_game(self, game_id: str, innings_data: list[dict]) -> list[dict]:
         """
@@ -128,10 +130,19 @@ class PitchDataParser:
         relay_data = result_node.get("textRelayData", {}) or {}
         text_relays: list[dict] = relay_data.get("textRelays", []) or []
 
+        # API delivers PAs newest-first within each half-inning (homeOrAway group).
+        # Group by homeOrAway, then iterate groups in ascending key order ("0"=top/초 first,
+        # "1"=bot/말 second) and reverse each group so pitches are in chronological order.
+        groups: dict[str, list] = {}
         for relay in text_relays:
-            # ★ 수정: relay 하나(=타석 하나)에서 투구 여러 개가 나올 수 있음
-            relay_rows = self._parse_relay(game_id, inning_num, relay)
-            rows.extend(relay_rows)
+            hoa = str(relay.get("homeOrAway", "0"))
+            if hoa not in groups:
+                groups[hoa] = []
+            groups[hoa].append(relay)
+
+        for hoa in sorted(groups.keys()):
+            for relay in reversed(groups[hoa]):
+                rows.extend(self._parse_relay(game_id, inning_num, relay))
 
         return rows
 
@@ -220,15 +231,6 @@ class PitchDataParser:
         """type=1 인 단일 textOption 을 받아 하나의 투구 Row dict 를 반환."""
 
         state: dict = opt.get("currentGameState", {}) or {}
-        players_info: dict = opt.get("currentPlayersInfo", {}) or {}
-
-        # ── 투수 팀 판별 ──────────────────────────────────────────────
-        # homeOrAway == "1" → 홈팀 공격 → 원정팀(away)이 투수
-        # homeOrAway == "0" → 원정팀 공격 → 홈팀(home)이 투수
-        pitcher_side = "away" if home_or_away == "1" else "home"
-
-        pitcher_obj: dict = players_info.get(pitcher_side, {}) or {}
-        pitcher_stats: dict = pitcher_obj.get("currentGamePlayerStats", {}) or {}
 
         # ── 기본 ID ───────────────────────────────────────────────────
         pitcher_id = str(state.get("pitcher", ""))
@@ -246,7 +248,9 @@ class PitchDataParser:
         pitch_type: str = opt.get("stuff", "") or ""
 
         # ── 누적 투구 수 (투수 프로필) ────────────────────────────────
-        total_pitch_count = pitcher_stats.get("ballCount", 0)
+        # API에 해당 필드가 없으므로 pitcher_id별 자체 카운터로 누적
+        self._total_pitch_count[pitcher_id] += 1
+        total_pitch_count = self._total_pitch_count[pitcher_id]
 
         # ── 파생 1: 최근 5구 구속 평균 ───────────────────────────────
         recent_5_avg = self._calc_recent_speed_avg(pitcher_id, pitch_speed)
