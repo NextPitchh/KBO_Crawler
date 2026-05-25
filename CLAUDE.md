@@ -2,6 +2,10 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Pipeline Status
+
+Phase 1–4 complete. `data_analysis/results/hsk_pa_with_wpa.parquet` (11,984 PA rows) is the primary training artifact. Next: CatBoost / Monte Carlo / DQN (team handoff).
+
 ## Commands
 
 ```bash
@@ -16,6 +20,11 @@ uv run python data_analysis/methods/run_hsk.py
 
 # Regenerate the HSK game ID list (writes hsk_game_ids_2015_2024.txt)
 uv run python get_hsk_game_ids.py
+
+# Regenerate WPA data (run in order if rebuilding from scratch)
+uv run python -m data_analysis.methods.state_transition  # adds we_before/we_after
+uv run python -m data_analysis.methods.inject_wpa        # adds reward_wpa_computed
+uv run python -m data_analysis.methods.validate_wpa      # Phase 4 validation report
 
 # Background run with log capture
 nohup uv run python data_analysis/methods/run_hsk.py > hsk.log 2>&1 &
@@ -64,6 +73,24 @@ run_hsk.py
 
 `pa_result` is classified by regex over `relay_text` (type=13 textOption): HR, 3B, 2B, 1B, IBB, BB, HBP, SO, GDP, SF, OUT, or UNK. UNK rate >5% triggers a warning log.
 
+### WPA computation layer (`data_analysis/methods/`)
+
+```
+state_transition.py   → adds base_state, half, score_diff_attacker, we_before,
+                         runs_scored, inning_ended to hsk_pa.parquet
+inject_wpa.py         → computes we_after, reward_wpa_computed (ΔWE), writes
+                         hsk_pa_with_wpa.parquet
+validate_wpa.py       → Phase 4 validation: sign-match vs Naver WPA, Spearman ρ
+we_re_lookup.py       → RE/WE lookup for Monte Carlo / DQN (import this module)
+```
+
+**WE table source**: 문형우 외(2016) KBO Markov-chain paper (Table 3.2).
+- Innings 3 and 7 are fully tabulated; other innings are linearly interpolated.
+- Out dimension: Option A — all out counts use the 1-out row (known limitation; sign-match 78.5%, Spearman ρ = 0.676).
+- Score diff clipped to [−4, +4]; walk-off → WE = 1.0 immediately.
+
+`get_we_with_boundary(inning, half, score_diff, out_count, base_state)` is the primary entry point for downstream simulation.
+
 ### Data Chronology Policy (CRITICAL)
 
 **CRITICAL: 네이버 API 응답은 역순(최신 이벤트가 상단)이므로, `parser.py`의 `_parse_inning()`에서 각 경기별/이닝별 데이터를 파싱할 때 반드시 실제 경기 시간순으로 정렬을 뒤집어야 한다.**
@@ -105,6 +132,14 @@ result.textRelayData.textRelays[]     ← one element = one plate appearance (PA
   before top within same inning). parser.py compensates this.
 - `score_diff_attacker` (in PA-level outputs) is already converted to
   attacker's perspective; use it directly without further sign flipping.
+- `reward_wpa_computed` = we_after − we_before, attacker's perspective.
+  For the pitcher (defending team) perspective use `-reward_wpa_computed`.
+- `reward_wpa` (Naver original): 89.46% missing, non-standard scale
+  (min=−21, max=+59). **Do not use as a training target.** Keep for
+  validation reference only.
+- `data_quality_flag`: `""` = clean (11,937 rows); `"inning1_nonzero_start"` = 47 rows
+  with non-zero score_diff at 1st inning start (suspected crawl gap). Exclude with
+  `df[df["data_quality_flag"] == ""]` before training.
 
 These were established by comparing 20160317 SK vs HH game data against
 external ground truth (starting lineup + box score). DO NOT re-derive
@@ -120,3 +155,23 @@ multiple consistent sign flips in the dataset.
 - Target: `pitch_result`, `relay_text`, `reward_wpa`
 
 **PA-level Parquet** (`data_analysis/results/hsk_pa.parquet`): all pitch-level state columns (first-pitch values) plus `pa_result`, `reward_wpa`, `pitches_per_pa`, `pa_avg_pitch_speed`.
+
+**WPA-enriched PA Parquet** (`data_analysis/results/hsk_pa_with_wpa.parquet`, **primary training artifact**, 11,984 rows): all hsk_pa columns plus:
+- `base_state` (str): "0"/"1"/"2"/"3"/"12"/"13"/"23"/"123"
+- `half` (str): "top"/"bot"
+- `score_diff_attacker` (int): score diff from attacker's perspective (sign-converted, use directly)
+- `we_before` / `we_after` (float, [0,1]): attacker win probability before/after PA
+- `runs_scored` (int): runs scored in this PA
+- `inning_ended` (bool): whether this PA ended the inning
+- `reward_wpa_computed` (float, [−1,+1]): ΔWE = we_after − we_before (primary reward signal)
+- `data_quality_flag` (str): "" or "inning1_nonzero_start"
+
+**Recommended training setup**:
+```python
+cat_features = ["half", "base_state", "batter_hit_type", "pitcher_id", "batter_id"]
+num_features = ["inning", "score_diff_attacker", "out_count",
+                "total_pitch_count", "inning_pitch_count",
+                "pitcher_vs_batter_avg", "batter_recent_avg"]
+# pitcher_vs_batter_avg, batter_recent_avg NaN → fill 0.250
+# y options: pa_result (multiclass), reward_wpa_computed (regression)
+```
