@@ -171,36 +171,36 @@ DQN
 
 #### 학습 입력 특성 (X)
 
-| 컬럼 | 타입 | 범위/값 | 설명 |
-|------|------|---------|------|
-| `inning` | int | 1–15 | 이닝 번호 |
-| `half` | str | "top"/"bot" | top=초(원정팀 공격), bot=말(홈팀 공격) |
-| `score_diff_attacker` | int | 음수–양수 | 공격팀 관점 점수차 (양수=리드). 부호 변환 완료 |
-| `base_state` | str | "0","1","2","3","12","13","23","123" | 점유 루 문자열 |
-| `out_count` | int | 0–2 | 아웃 수 |
-| `total_pitch_count` | int | 0+ | 투수 누적 투구 수 (피로도 지표) |
-| `inning_pitch_count` | int | 0+ | 해당 이닝 투수 투구 수 |
-| `pitcher_id` | int | — | 투수 식별자 (카테고리형) |
-| `batter_id` | int | — | 타자 식별자 (카테고리형) |
-| `batter_hit_type` | str | "L"/"R"/"S" | 타자 타석 방향 (카테고리형) |
-| `pitcher_vs_batter_avg` | float | 0.0–1.0 | 투수 vs 타자 상대 타율. 결측 → 0.250 대체 권장 |
-| `batter_recent_avg` | float | 0.0–1.0 | 타자 최근 타율. 결측 → 0.250 대체 권장 |
+| 컬럼 | 타입 | 범위/값 | 결측 | 설명 |
+|------|------|---------|------|------|
+| `inning` | int | 1–15 | 없음 | 이닝 번호 |
+| `half` | str | "top"/"bot" | 없음 | top=초(원정팀 공격), bot=말(홈팀 공격) |
+| `score_diff_attacker` | int | 음수–양수 | 없음 | 공격팀 관점 점수차 (양수=리드). 부호 변환 완료 |
+| `base_state` | str | "0","1","2","3","12","13","23","123" | 없음 | 점유 루 문자열 |
+| `out_count` | int | 0–2 | 없음 | 아웃 수 |
+| `total_pitch_count` | int | 0+ | 없음 | 투수 누적 투구 수 (피로도 지표) |
+| `inning_pitch_count` | int | 0+ | 없음 | 해당 이닝 투수 투구 수 |
+| `pitcher_id` | int | — | 없음 | 투수 식별자 (카테고리형) |
+| `batter_id` | int | — | 없음 | 타자 식별자 (카테고리형) |
+| `batter_hit_type` | str | "L"/"R"/"S" | 없음 | 타자 타석 방향 (카테고리형) |
+| `pitcher_vs_batter_avg` | float | 0.0–1.0 | 일부 | 투수 vs 타자 상대 타율. 결측 → 0.250 대체 권장 |
+| `batter_recent_avg` | float | 0.0–1.0 | 일부 | 타자 최근 타율. 결측 → 0.250 대체 권장 |
 
 #### 학습 타겟 (y)
 
-| 컬럼 | 타입 | 범위/값 | 설명 |
-|------|------|---------|------|
-| `pa_result` | str | HR/3B/2B/1B/SF/BB/IBB/HBP/SO/GDP/OUT/UNK | PA 결과 (다클래스 분류 타겟) |
-| `reward_wpa_computed` | float | [−1, +1] | ΔWE = we_after − we_before, 공격팀 관점 (회귀 타겟) |
-| `runs_scored` | int | 0–4 | 해당 PA 실제 득점 |
+| 컬럼 | 타입 | 범위/값 | 결측 | 설명 |
+|------|------|---------|------|------|
+| `pa_result` | str | HR/3B/2B/1B/SF/BB/IBB/HBP/SO/GDP/OUT/UNK | 없음 | PA 결과 (다클래스 분류 타겟) |
+| `reward_wpa_computed` | float | [−1, +1] | 없음 | ΔWE = we_after − we_before, 공격팀 관점 (회귀 타겟) |
+| `runs_scored` | int | 0–4 | 없음 | 해당 PA 실제 득점 |
 
 #### 상태 변수 (Monte Carlo / DQN)
 
-| 컬럼 | 타입 | 설명 |
-|------|------|------|
-| `we_before` | float | 타석 시작 전 공격팀 승리확률 [0,1] |
-| `we_after` | float | 타석 종료 후 공격팀 승리확률 [0,1] |
-| `inning_ended` | bool | 해당 PA로 이닝이 종료됐는지 |
+| 컬럼 | 타입 | 결측 | 설명 |
+|------|------|------|------|
+| `we_before` | float | 없음 | 타석 시작 전 공격팀 승리확률 [0,1] |
+| `we_after` | float | 없음 | 타석 종료 후 공격팀 승리확률 [0,1] |
+| `inning_ended` | bool | 없음 | 해당 PA로 이닝이 종료됐는지 |
 
 #### 메타 / 참고용
 
@@ -237,6 +237,20 @@ DQN
 | 득점 1스텝 지연 | 네이버 API 특성상 득점이 다음 PA의 score_diff에 반영. runs_scored로 역산 보완 |
 | 데이터 품질 47건 | `inning1_nonzero_start`: 1회 첫 PA 시작 시 score_diff ≠ 0 (크롤링 누락 추정) |
 | Naver WPA 사용 금지 | 89.46% 결측 + 비표준 스케일. reward_wpa_computed를 학습 타겟으로 사용 |
+
+---
+
+## 디버깅 이력
+
+데이터 구축 과정의 주요 발견 사항 (발표 자료 참고용):
+
+| 발견 | 원인 | 해결 |
+|------|------|------|
+| 네이버 API가 반이닝을 시간 역순으로 반환 | API 설계 | `parser.py`에서 `reversed()` 정렬 보정 |
+| `home_or_away` 코드가 직관과 반대 | Naver API 명세 확인 | 선발 라인업·박스스코어 외부 진실로 확정 |
+| `score_diff` 1스텝 지연 | API 특성 | 설계로 인정, `runs_scored`로 역산 보완 |
+| 동일 방향 다중 부호 오류가 단위 테스트를 통과 | 일관된 부호 반전은 테스트로 탐지 불가 | 도메인 외부 진실(경기 결과) 대조 필수 |
+| Option A 1아웃 단순화로 부호 일치율 78.5% | WE 테이블이 1아웃 한정 | 한계로 명시, Phase 5(Option B) 보류 |
 
 ---
 
