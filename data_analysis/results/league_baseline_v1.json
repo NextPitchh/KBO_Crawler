@@ -1,0 +1,13 @@
+{
+  "league_wpa_std": 0.14778705341772916,
+  "league_wpa_std_sd": 0.06750517866097222,
+  "league_bb_rate": 0.09354138851802403,
+  "league_bb_rate_sd": 0.1547626642835511,
+  "league_so_rate": 0.1765687583444593,
+  "league_so_rate_sd": 0.19880312031157565,
+  "league_hr_rate": 0.02578437917222964,
+  "league_hr_rate_sd": 0.06973981395599546,
+  "n_established_appearances": 565,
+  "n_total_appearances": 1428,
+  "established_min_apps": 10
+}

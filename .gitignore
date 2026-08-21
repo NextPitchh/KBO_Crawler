@@ -11,6 +11,7 @@ wheels/
 
 # Regenerable intermediate data
 data/pbp/
+data/preview/
 data_analysis/results/pbp/
 
 # Logs
