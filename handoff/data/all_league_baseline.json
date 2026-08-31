@@ -1,0 +1,19 @@
+{
+  "league_wpa_std": 0.18514118836230203,
+  "league_wpa_std_sd": 0.07047842658422167,
+  "league_bb_rate": 0.10106975932710761,
+  "league_bb_rate_sd": 0.043152557674380296,
+  "league_so_rate": 0.16541876715976603,
+  "league_so_rate_sd": 0.041523322106625044,
+  "league_hr_rate": 0.022785414543217357,
+  "league_hr_rate_sd": 0.010604496558461277,
+  "n_established_pitchers": 626,
+  "n_regular_season_appearances": 64571,
+  "n_total_appearances": 64571,
+  "established_min_apps": 10,
+  "filter_applied": {
+    "regular_season_only": true,
+    "min_prior_apps": 10
+  },
+  "opening_dates_source": "config/season_opening_dates.json"
+}

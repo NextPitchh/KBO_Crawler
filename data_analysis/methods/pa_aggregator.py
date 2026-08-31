@@ -18,33 +18,55 @@ logger = logging.getLogger(__name__)
 
 # ────────────────────────────────────────────────────────────────────────
 #  정규표현식 기반 타석 결과 분류
+#
+#  unk_audit.py(2017-2025 9개년 전수 감사)로 확인된 표현 변형을 반영:
+#    - HBP: "몸에 맞는 공"뿐 아니라 "몸에 맞는 볼"도 쓰임(연 700~950건)
+#    - IBB: "고의사구"뿐 아니라 "고의4구"도 쓰임(연 55~185건)
+#    - 1B : "1루타" 외에 "OO수 왼쪽/앞 내야안타", "번트안타"도 안타(연 900~1000건)
+#    - ROE: 실책으로 출루/야수선택으로 출루/타격방해로 출루/플라이 실책/
+#           라인드라이브 실책 — 전부 "타자가 1루 도달"이라는 결과는 동일.
+#           야수선택의 선행주자 아웃률을 3개년 실측한 결과 0.7%(145건 중 1건)로
+#           5% 미만이어서 1B 병합 채택(out_count/base_state는 pa_result 라벨과
+#           무관하게 API 원본 상태값으로 산정되므로 병합이 WE 계산에 영향 없음).
 # ────────────────────────────────────────────────────────────────────────
 
-PA_RESULT_PATTERNS = [
-    (r"홈런",                                          "HR"),
-    (r"3루타",                                         "3B"),
-    (r"2루타",                                         "2B"),
-    (r"1루타",                                         "1B"),
-    (r"고의사구",                                       "IBB"),
-    (r"볼넷",                                          "BB"),
-    (r"몸에 맞는 공|사구",                               "HBP"),
-    (r"삼진",                                          "SO"),
-    (r"병살타",                                        "GDP"),
-    (r"희생플라이|희생타",                               "SF"),
-    (r"땅볼|뜬공|파울플라이|내야플라이|파울 아웃|아웃",    "OUT"),
+# 세분화된 원본 분류 — pa_result_raw 컬럼에 그대로 보존된다.
+PA_RESULT_PATTERNS_RAW = [
+    (r"홈런",                                                    "HR"),
+    (r"3루타",                                                   "3B"),
+    (r"2루타",                                                   "2B"),
+    (r"1루타|내야안타|번트안타",                                  "1B"),
+    (r"고의사구|고의4구",                                         "IBB"),
+    (r"볼넷",                                                    "BB"),
+    (r"몸에 맞는 공|몸에 맞는 볼|사구",                            "HBP"),
+    (r"실책으로 출루|야수선택으로 출루|타격방해로 출루|플라이 실책|라인드라이브 실책", "ROE"),
+    (r"삼진",                                                    "SO"),
+    (r"병살타",                                                  "GDP"),
+    (r"희생플라이|희생타",                                        "SF"),
+    (r"땅볼|뜬공|파울플라이|내야플라이|파울 아웃|아웃",             "OUT"),
 ]
 
-_COMPILED_PATTERNS = [(re.compile(p), label) for p, label in PA_RESULT_PATTERNS]
+_COMPILED_PATTERNS_RAW = [(re.compile(p), label) for p, label in PA_RESULT_PATTERNS_RAW]
+
+# 메인 pa_result로 병합되는 규칙 — HBP/IBB→BB(출루 이벤트 동일 취급),
+# ROE→1B(타자 1루 도달이라는 결과 동일). 매핑에 없는 라벨은 그대로 사용.
+_MERGE_TO_MAIN = {"HBP": "BB", "IBB": "BB", "ROE": "1B"}
 
 
-def _classify_pa_result(text: str) -> str:
-    """relay_text를 받아 타석 결과 레이블을 반환. 미매칭 시 'UNK'."""
+def _classify_pa_result_raw(text: str) -> str:
+    """relay_text를 받아 세분화된 타석 결과 레이블을 반환. 미매칭 시 'UNK'."""
     if not isinstance(text, str) or not text.strip():
         return "UNK"
-    for pattern, label in _COMPILED_PATTERNS:
+    for pattern, label in _COMPILED_PATTERNS_RAW:
         if pattern.search(text):
             return label
     return "UNK"
+
+
+def _classify_pa_result(text: str) -> str:
+    """relay_text를 받아 병합된(메인) 타석 결과 레이블을 반환. 미매칭 시 'UNK'."""
+    raw = _classify_pa_result_raw(text)
+    return _MERGE_TO_MAIN.get(raw, raw)
 
 
 # ────────────────────────────────────────────────────────────────────────
@@ -71,7 +93,9 @@ def aggregate_pa(df: pd.DataFrame) -> pd.DataFrame:
         df["relay_text"] = ""
 
     # pa_result 생성 (relay_text는 타석 내 모든 행에 동일하게 저장됨)
-    df["pa_result"] = df["relay_text"].apply(_classify_pa_result)
+    # pa_result_raw: 병합 전 세분화 라벨(HBP/IBB/ROE 등) 보존
+    df["pa_result_raw"] = df["relay_text"].apply(_classify_pa_result_raw)
+    df["pa_result"] = df["pa_result_raw"].map(lambda r: _MERGE_TO_MAIN.get(r, r))
 
     # ── 연속 그룹 인덱스(_pa_seq) 부여 ──────────────────────────────────
     # 동일 이닝에서 같은 투수-타자 조합이 두 번 나오는 경우(타순 순환)를
@@ -97,7 +121,7 @@ def aggregate_pa(df: pd.DataFrame) -> pd.DataFrame:
     pa_first = df.groupby("_pa_seq")[first_cols].first()
 
     # ── 타석 마지막 투구 기준 타겟/보상 ───────────────────────────────────
-    last_cols = [c for c in ["pa_result", "reward_wpa"] if c in df.columns]
+    last_cols = [c for c in ["pa_result", "pa_result_raw", "reward_wpa"] if c in df.columns]
     pa_last = df.groupby("_pa_seq")[last_cols].last()
 
     # ── 집계 피처 ────────────────────────────────────────────────────────

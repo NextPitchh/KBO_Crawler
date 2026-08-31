@@ -1,0 +1,19 @@
+{
+  "n_games": 50,
+  "concurrency": 16,
+  "pbp_total_elapsed_sec": 53.40974974632263,
+  "pbp_avg_sec_per_game": 1.0681949949264526,
+  "pbp_total_requests": 505,
+  "pbp_avg_requests_per_game": 10.1,
+  "pbp_status_counter": {
+    "200": 505
+  },
+  "pbp_failed_games": [],
+  "preview_total_elapsed_sec": 3.2273316383361816,
+  "preview_n_requests": 41,
+  "preview_n_skipped_early": 9,
+  "preview_n_failed": 0,
+  "combined_elapsed_sec": 56.63708138465881,
+  "combined_games_per_hour": 3178.129868266063,
+  "pbp_only_games_per_hour": 3370.1711926181297
+}
