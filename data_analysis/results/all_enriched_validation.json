@@ -1,0 +1,42 @@
+[
+  {
+    "name": "행 수 == Task2 결과와 동일",
+    "passed": true,
+    "detail": "558,064 -> 558,064"
+  },
+  {
+    "name": "기존 31컬럼 값 전수 일치",
+    "passed": true,
+    "detail": "31개 컬럼 전수 일치"
+  },
+  {
+    "name": "verify_no_leakage(30명)",
+    "passed": true,
+    "detail": "통과"
+  },
+  {
+    "name": "prior_n_apps==0 -> prior_wpa_std NaN",
+    "passed": true,
+    "detail": "위반 0건"
+  },
+  {
+    "name": "n_pitchers_used 단조 증가",
+    "passed": true,
+    "detail": "위반 그룹 0개"
+  },
+  {
+    "name": "비율 컬럼 [0,1] 또는 NaN",
+    "passed": true,
+    "detail": "정상"
+  },
+  {
+    "name": "pa_result 도메인 순서(Tier 1)",
+    "passed": true,
+    "detail": "warnings=[]"
+  },
+  {
+    "name": "Telescoping 검증",
+    "passed": true,
+    "detail": "게임 7197개, 평균절대오차 0.000005, 오차>=0.1인 게임 0건"
+  }
+]

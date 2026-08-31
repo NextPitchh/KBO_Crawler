@@ -1,0 +1,86 @@
+{
+  "year": 2024,
+  "1_game_count": {
+    "target": 720,
+    "success": 720,
+    "ratio": 1.0,
+    "pass": true
+  },
+  "2_inning_completeness": {
+    "n_incomplete_gap": 0,
+    "pass": true
+  },
+  "3_unk_rate": {
+    "rate": 0.0027603291161638504,
+    "pass": "True"
+  },
+  "4_wpa_domain_order": {
+    "means": {
+      "HR": 0.11842427969079408,
+      "3B": 0.1099923245614035,
+      "2B": 0.07024628134296643,
+      "1B": 0.04495941747572815,
+      "BB": 0.03360129015721121,
+      "SF": 0.030721359223300968,
+      "OUT": -0.005216408476140789,
+      "SO": -0.007247746825071693,
+      "GDP": -0.030526564051638533
+    },
+    "pass": true,
+    "wpa_order": {
+      "tier1_pass": true,
+      "tier1_violations": [],
+      "warnings": []
+    }
+  },
+  "sf_count_check": {
+    "n_sf": 515,
+    "n_pa": 56515,
+    "sf_rate": 0.009112624966822967
+  },
+  "5_team_coverage": {
+    "teams_seen": [
+      "HH",
+      "HT",
+      "KT",
+      "LG",
+      "LT",
+      "NC",
+      "OB",
+      "SK",
+      "SS",
+      "WO"
+    ],
+    "n_teams": 10,
+    "pass": true
+  },
+  "6_preview_coverage": {
+    "n_ok": 0,
+    "n_skipped_existing": 720,
+    "n_skipped_early": 0,
+    "n_failed": 0,
+    "n_targets": 720,
+    "n_unsupported_pre_20170530": 0,
+    "n_supported_post_20170530": 720,
+    "n_missing_total": 0,
+    "n_missing_but_should_have_preview": 0,
+    "missing_but_should_have_preview_ids": [],
+    "all_missing_are_pre_threshold": true,
+    "post_threshold_fail_rate": 0.0,
+    "pass": true
+  },
+  "7_called_game_correction": {
+    "n_called": 5,
+    "called_ids": [
+      "20240423LGSS02024",
+      "20240515NCHH02024",
+      "20240629SKOB02024",
+      "20240724NCHT02024",
+      "20240827SKHT02024"
+    ]
+  },
+  "overall_pass": true,
+  "http_429_events": [],
+  "final_concurrency": 16,
+  "unresolved_games": []
+}
